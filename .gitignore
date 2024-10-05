@@ -1,0 +1,7 @@
+# Ignorar archivos de Composer
+vendor/
+composer.lock
+
+# Ignorar archivos de logs
+nohup.out
+websocket.log
