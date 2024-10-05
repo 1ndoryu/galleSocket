@@ -10,16 +10,6 @@ use Ratchet\Http\HttpServer;
 use Ratchet\Server\IoServer;
 use Ratchet\WebSocket\WsServer;
 
-/*
-
-estos son los unicos logs que muestra y no veo que intente guardar el mensaje en wordpres
-
-Mensaje recibido de 89: {"emisor":"44","type":"auth","token":"810e8fb11c"}
-Mensaje recibido de 89: {"emisor":"44","receptor":"1","mensaje":"hola","adjunto":null,"metadata":null}
-Mensaje recibido de 89: {"emisor":"44","receptor":"1","mensaje":"prueba","adjunto":null,"metadata":null}
-
-*/
-
 class Chat implements MessageComponentInterface
 {
     protected $clients;
@@ -47,29 +37,29 @@ class Chat implements MessageComponentInterface
     {
         // Log para mostrar el mensaje recibido
         echo "Mensaje recibido de {$from->resourceId}: " . $msg . "\n";
-
+    
         // Intentar decodificar el mensaje JSON
         $data = json_decode($msg, true);
-
+    
         if (!$data) {
             echo "Error: Mensaje no es JSON válido\n";
             return;
         }
-
+    
         // Si el mensaje es de autenticación
         if (isset($data['type']) && $data['type'] === 'auth') {
             echo "Mensaje de autenticación recibido. Verificando token...\n";
             $this->verificarToken($from, $data['token'], $data['emisor']);
             return;
         }
-
+    
         // Verificar si el usuario está autenticado
         if (!isset($this->autenticados[$from->resourceId])) {
             echo "Error: Usuario no autenticado para la conexión {$from->resourceId}\n";
             $from->send(json_encode(['error' => 'No autenticado']));
             return;
         }
-
+    
         // Si el mensaje es un ping, responder con un pong
         if (isset($data['type']) && $data['type'] === 'ping') {
             echo "Ping recibido de {$from->resourceId}, enviando pong...\n";
@@ -77,24 +67,24 @@ class Chat implements MessageComponentInterface
             echo "Pong enviado a {$from->resourceId}\n";
             return;
         }
-
-        // Si el mensaje tiene un emisor y aún no se ha asociado con la conexión
+    
+        // Si hay un emisor pero no se ha asociado aún a la conexión
         if (isset($data['emisor']) && !isset($this->users[$from->resourceId])) {
             $this->users[$from->resourceId] = $data['emisor'];
             echo "Emisor {$data['emisor']} asociado con conexión {$from->resourceId}\n";
         }
-
+    
         // Verificar si el emisor está correctamente asociado
         if (!isset($this->users[$from->resourceId])) {
             echo "Error: Emisor no está asociado a la conexión {$from->resourceId}\n";
             return;
         }
-
+    
         // Si hay un receptor especificado, intentar enviar el mensaje
         if (isset($data['receptor'])) {
             $receptorId = $data['receptor'];
             echo "Buscando receptor con ID: {$receptorId}\n";
-
+    
             $receptorEncontrado = false;
             foreach ($this->clients as $client) {
                 if (isset($this->users[$client->resourceId]) && $this->users[$client->resourceId] == $receptorId) {
@@ -104,25 +94,26 @@ class Chat implements MessageComponentInterface
                     break;
                 }
             }
-
+    
             if (!$receptorEncontrado) {
                 echo "Receptor {$receptorId} no encontrado o no conectado\n";
             }
         } else {
             echo "Mensaje sin receptor\n";
         }
-
+    
         // Guardar el mensaje en WordPress
         echo "Intentando guardar mensaje en WordPress...\n";
-
+    
         // Verificar si hay un token autenticado asociado
         if (isset($this->autenticados[$from->resourceId])) {
             echo "Token autenticado: " . $this->autenticados[$from->resourceId] . "\n";
-
+    
             // Obtener el user_id (emisor) para pasarlo junto con el token
             if (isset($data['emisor'])) {
                 $user_id = $data['emisor'];
-                $this->guardarMensajeEnWordPress($from, $data, $this->autenticados[$from->resourceId], $user_id);
+                $conversacion_id = $data['conversacion_id'] ?? null; // Obtener la conversacion_id si está presente
+                $this->guardarMensajeEnWordPress($from, $data, $this->autenticados[$from->resourceId], $user_id, $conversacion_id);
             } else {
                 echo "Error: No se proporcionó un emisor en los datos\n";
             }
@@ -130,7 +121,7 @@ class Chat implements MessageComponentInterface
             echo "Error: No se encontró un token autenticado para la conexión {$from->resourceId}\n";
         }
     }
-
+    
     private function verificarToken(ConnectionInterface $conn, $token, $emisor)
     {
         // Log para ver el token y el emisor que se están verificando
@@ -213,7 +204,7 @@ class Chat implements MessageComponentInterface
         $conn->close();
     }
     
-    private function guardarMensajeEnWordPress($from, $data, $token, $user_id)
+    private function guardarMensajeEnWordPress($from, $data, $token, $user_id, $conversacion_id = null)
     {
         echo "Datos a enviar a WordPress: " . json_encode($data) . "\n";
         echo "Token usado para autenticar en WordPress: $token\n";
@@ -222,6 +213,12 @@ class Chat implements MessageComponentInterface
         $url = 'https://2upra.com/wp-json/galle/v2/procesarmensaje';
         $max_intentos = 5; // Número máximo de intentos
         $intento_actual = 0;
+    
+        // Añadir la conversacion_id si está presente
+        if ($conversacion_id) {
+            $data['conversacion_id'] = $conversacion_id;
+            echo "Conversación ID: $conversacion_id añadida al mensaje.\n";
+        }
     
         while ($intento_actual < $max_intentos) {
             // Iniciar cURL
@@ -285,6 +282,7 @@ class Chat implements MessageComponentInterface
             $from->send(json_encode($errorResponse));
         }
     }
+    
 }
 
 // Configuración del servidor
