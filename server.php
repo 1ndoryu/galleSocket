@@ -41,6 +41,7 @@ class Chat implements MessageComponentInterface
 
         // Log para mostrar el mensaje recibido
         echo "Mensaje recibido de {$from->resourceId}: " . $msg . "\n";
+        echo "1:58PM";
 
         // Intentar decodificar el mensaje JSON
         $data = json_decode($msg, true);
