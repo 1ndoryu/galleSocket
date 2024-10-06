@@ -33,7 +33,8 @@ class Chat implements MessageComponentInterface
         $conn->send(json_encode(['type' => 'auth', 'message' => 'Por favor, envía tu token de autenticación.']));
     }
 
-    // Mensaje recibido de 1204: {"emisor":"1","receptor":"[\"1\",\"44\"]","mensaje":"7","adjunto":null,"metadata":null,"conversacion_id":"13","temp_id":1728235932509} porque metadata es null?
+    // Ayudame a entender porque metadata es null en esta parte, por favor, depuremos para entenderlo
+    //  Mensaje recibido de 1204: {"emisor":"1","receptor":"[\"1\",\"44\"]","mensaje":"7","adjunto":null,"metadata":null,"conversacion_id":"13","temp_id":1728235932509} porque metadata es null?
     //aunque al final se guarda en wordpress asi2 024-10-06 17:44:52 - Parámetros recibidos: {"emisor":"1","receptor":"[\"1\",\"44\"]","mensaje":"9","adjunto":null,"metadata":"colab","conversacion_id":"13","temp_id":1728236692090}
     public function onMessage(ConnectionInterface $from, $msg)
     {
@@ -52,6 +53,12 @@ class Chat implements MessageComponentInterface
         // Mostrar los datos decodificados para mayor claridad
         echo "Datos del mensaje decodificado:\n";
         print_r($data);
+
+        // Verificar si 'metadata' está presente y no es null
+        if (!isset($data['metadata'])) {
+            echo "Advertencia: metadata está ausente o es null. Asignando valor por defecto.\n";
+            $data['metadata'] = 'default_value'; // O puedes dejarlo como null si prefieres
+        }
 
         // Si el mensaje es de autenticación
         if (isset($data['type']) && $data['type'] === 'auth') {
