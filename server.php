@@ -33,9 +33,13 @@ class Chat implements MessageComponentInterface
         $conn->send(json_encode(['type' => 'auth', 'message' => 'Por favor, envía tu token de autenticación.']));
     }
 
-    // Ayudame a entender porque metadata es null en esta parte, por favor, depuremos para entenderlo
-    //  Mensaje recibido de 1204: {"emisor":"1","receptor":"[\"1\",\"44\"]","mensaje":"7","adjunto":null,"metadata":null,"conversacion_id":"13","temp_id":1728235932509} porque metadata es null?
-    //aunque al final se guarda en wordpress asi2 024-10-06 17:44:52 - Parámetros recibidos: {"emisor":"1","receptor":"[\"1\",\"44\"]","mensaje":"9","adjunto":null,"metadata":"colab","conversacion_id":"13","temp_id":1728236692090}
+    /* 
+    el codigo funciona bien para los mensajes 1 a 1, pero para los mensajes grupales, falta ajustar 
+
+    un ejemplo de un mensaje grupal, recibe los receptores y la metadata colab con la conversacion_id, bueno, falta que encuentre el receptor en el array omitiendo al omisor porque suele aparecer en los receptores tambien, entonces, asi encuentra los receptores y los envía a todos los receptore
+    Mensaje recibido de 94: {"emisor":"1","receptor":"[\"1\",\"44\"]","mensaje":"14","adjunto":null,"metadata":"colab","conversacion_id":"13","temp_id":1728237665854}
+
+    */
     public function onMessage(ConnectionInterface $from, $msg)
     {
 
@@ -91,26 +95,53 @@ class Chat implements MessageComponentInterface
 
         // Si hay un receptor especificado, intentar enviar el mensaje
         if (isset($data['receptor'])) {
-            $receptorId = $data['receptor'];
-            echo "Buscando receptor con ID: {$receptorId}\n";
-
-            $receptorEncontrado = false;
-            foreach ($this->clients as $client) {
-                if (isset($this->users[$client->resourceId]) && $this->users[$client->resourceId] == $receptorId) {
-                    $client->send($msg);
-                    echo "Mensaje enviado al receptor {$receptorId} (conexión {$client->resourceId})\n";
-                    $receptorEncontrado = true;
-                    break;
+            // Intentar decodificar el campo 'receptor' como un array JSON
+            $receptorIds = json_decode($data['receptor'], true);
+        
+            if (json_last_error() === JSON_ERROR_NONE && is_array($receptorIds)) {
+                // Es un mensaje grupal
+                echo "Mensaje grupal a los receptores: " . implode(', ', $receptorIds) . "\n";
+                
+                // Omitir al emisor de la lista de receptores si está presente
+                $receptorIds = array_diff($receptorIds, [$data['emisor']]);
+        
+                $receptoresEncontrados = [];
+                foreach ($this->clients as $client) {
+                    if (isset($this->users[$client->resourceId]) && in_array($this->users[$client->resourceId], $receptorIds)) {
+                        $client->send($msg);
+                        echo "Mensaje enviado al receptor {$this->users[$client->resourceId]} (conexión {$client->resourceId})\n";
+                        $receptoresEncontrados[] = $this->users[$client->resourceId];
+                    }
                 }
-            }
-
-            if (!$receptorEncontrado) {
-                echo "Receptor {$receptorId} no encontrado o no conectado\n";
+        
+                // Verificar si hay receptores que no están conectados
+                $receptoresNoConectados = array_diff($receptorIds, $receptoresEncontrados);
+                if (!empty($receptoresNoConectados)) {
+                    echo "Receptores no conectados: " . implode(', ', $receptoresNoConectados) . "\n";
+                }
+            } else {
+                // No es un array, tratar como receptor único
+                $receptorId = $data['receptor'];
+                echo "Buscando receptor con ID: {$receptorId}\n";
+        
+                $receptorEncontrado = false;
+                foreach ($this->clients as $client) {
+                    if (isset($this->users[$client->resourceId]) && $this->users[$client->resourceId] == $receptorId) {
+                        $client->send($msg);
+                        echo "Mensaje enviado al receptor {$receptorId} (conexión {$client->resourceId})\n";
+                        $receptorEncontrado = true;
+                        break;
+                    }
+                }
+        
+                if (!$receptorEncontrado) {
+                    echo "Receptor {$receptorId} no encontrado o no conectado\n";
+                }
             }
         } else {
             echo "Mensaje sin receptor\n";
         }
-
+        
         // Guardar el mensaje en WordPress
         echo "Intentando guardar mensaje en WordPress...\n";
 
