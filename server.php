@@ -41,7 +41,6 @@ class Chat implements MessageComponentInterface
 
         // Log para mostrar el mensaje recibido
         echo "Mensaje recibido de {$from->resourceId}: " . $msg . "\n";
-        echo "1:58PM";
 
         // Intentar decodificar el mensaje JSON
         $data = json_decode($msg, true);
@@ -55,11 +54,6 @@ class Chat implements MessageComponentInterface
         echo "Datos del mensaje decodificado:\n";
         print_r($data);
 
-        // Verificar si 'metadata' está presente y no es null
-        if (!isset($data['metadata'])) {
-            echo "Advertencia: metadata está ausente o es null. Asignando valor por defecto.\n";
-            $data['metadata'] = 'default_value'; // O puedes dejarlo como null si prefieres
-        }
 
         // Si el mensaje es de autenticación
         if (isset($data['type']) && $data['type'] === 'auth') {
