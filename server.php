@@ -34,62 +34,57 @@ class Chat implements MessageComponentInterface
     }
 
     /* 
-    el codigo funciona bien para los mensajes 1 a 1, pero para los mensajes grupales, falta ajustar 
 
-    un ejemplo de un mensaje grupal, recibe los receptores y la metadata colab con la conversacion_id, bueno, falta que encuentre el receptor en el array omitiendo al omisor porque suele aparecer en los receptores tambien, entonces, asi encuentra los receptores y los envía a todos los receptore
-    Mensaje recibido de 94: {"emisor":"1","receptor":"[\"1\",\"44\"]","mensaje":"14","adjunto":null,"metadata":"colab","conversacion_id":"13","temp_id":1728237665854}
 
     */
     public function onMessage(ConnectionInterface $from, $msg)
     {
-
-        // Log para mostrar el mensaje recibido
-        echo "Mensaje recibido de {$from->resourceId}: " . $msg . "\n";
+        // echo "Mensaje recibido de {$from->resourceId}: " . $msg . "\n"; // Comentado: Log innecesario
 
         // Intentar decodificar el mensaje JSON
         $data = json_decode($msg, true);
 
         if (!$data) {
-            echo "Error: Mensaje no es JSON válido\n";
+            // echo "Error: Mensaje no es JSON válido\n"; // Comentado: Log innecesario
             return;
         }
 
-        // Mostrar los datos decodificados para mayor claridad
-        echo "Datos del mensaje decodificado:\n";
-        print_r($data);
+        // echo "Datos del mensaje decodificado:\n"; // Comentado: Log innecesario
+        // print_r($data); // Comentado: Log innecesario
 
 
         // Si el mensaje es de autenticación
         if (isset($data['type']) && $data['type'] === 'auth') {
-            echo "Mensaje de autenticación recibido. Verificando token...\n";
+            // echo "Mensaje de autenticación recibido. Verificando token...\n"; // Comentado: Log innecesario
             $this->verificarToken($from, $data['token'], $data['emisor']);
             return;
         }
 
         // Verificar si el usuario está autenticado
         if (!isset($this->autenticados[$from->resourceId])) {
-            echo "Error: Usuario no autenticado para la conexión {$from->resourceId}\n";
+            // echo "Error: Usuario no autenticado para la conexión {$from->resourceId}\n"; // Comentado: Log innecesario
             $from->send(json_encode(['error' => 'No autenticado']));
+            // echo "Enviado al {$from->resourceId}: " . json_encode(['error' => 'No autenticado']) . "\n";
             return;
         }
 
         // Si el mensaje es un ping, responder con un pong
         if (isset($data['type']) && $data['type'] === 'ping') {
-            echo "Ping recibido de {$from->resourceId}, enviando pong...\n";
+            // echo "Ping recibido de {$from->resourceId}, enviando pong...\n"; // Comentado: Log innecesario
             $from->send(json_encode(['type' => 'pong']));
-            echo "Pong enviado a {$from->resourceId}\n";
+            // echo "Enviado al {$from->resourceId}: " . json_encode(['type' => 'pong']) . "\n";
             return;
         }
 
         // Si hay un emisor pero no se ha asociado aún a la conexión
         if (isset($data['emisor']) && !isset($this->users[$from->resourceId])) {
             $this->users[$from->resourceId] = $data['emisor'];
-            echo "Emisor {$data['emisor']} asociado con conexión {$from->resourceId}\n";
+            // echo "Emisor {$data['emisor']} asociado con conexión {$from->resourceId}\n"; // Comentado: Log innecesario
         }
 
         // Verificar si el emisor está correctamente asociado
         if (!isset($this->users[$from->resourceId])) {
-            echo "Error: Emisor no está asociado a la conexión {$from->resourceId}\n";
+            // echo "Error: Emisor no está asociado a la conexión {$from->resourceId}\n"; // Comentado: Log innecesario
             return;
         }
 
@@ -97,76 +92,77 @@ class Chat implements MessageComponentInterface
         if (isset($data['receptor'])) {
             // Intentar decodificar el campo 'receptor' como un array JSON
             $receptorIds = json_decode($data['receptor'], true);
-        
+
             if (json_last_error() === JSON_ERROR_NONE && is_array($receptorIds)) {
                 // Es un mensaje grupal
-                echo "Mensaje grupal a los receptores: " . implode(', ', $receptorIds) . "\n";
-                
+                // echo "Mensaje grupal a los receptores: " . implode(', ', $receptorIds) . "\n"; // Comentado: Log innecesario
+
                 // Omitir al emisor de la lista de receptores si está presente
                 $receptorIds = array_diff($receptorIds, [$data['emisor']]);
-        
+
                 $receptoresEncontrados = [];
                 foreach ($this->clients as $client) {
                     if (isset($this->users[$client->resourceId]) && in_array($this->users[$client->resourceId], $receptorIds)) {
                         $client->send($msg);
-                        echo "Mensaje enviado al receptor {$this->users[$client->resourceId]} (conexión {$client->resourceId})\n";
+                        echo "Enviado a {$this->users[$client->resourceId]} (conexión {$client->resourceId}): " . $msg . "\n";
                         $receptoresEncontrados[] = $this->users[$client->resourceId];
                     }
                 }
-        
+
                 // Verificar si hay receptores que no están conectados
                 $receptoresNoConectados = array_diff($receptorIds, $receptoresEncontrados);
                 if (!empty($receptoresNoConectados)) {
-                    echo "Receptores no conectados: " . implode(', ', $receptoresNoConectados) . "\n";
+                    // echo "Receptores no conectados: " . implode(', ', $receptoresNoConectados) . "\n"; // Comentado: Log innecesario
                 }
             } else {
                 // No es un array, tratar como receptor único
                 $receptorId = $data['receptor'];
-                echo "Buscando receptor con ID: {$receptorId}\n";
-        
+                // echo "Buscando receptor con ID: {$receptorId}\n"; // Comentado: Log innecesario
+
                 $receptorEncontrado = false;
                 foreach ($this->clients as $client) {
                     if (isset($this->users[$client->resourceId]) && $this->users[$client->resourceId] == $receptorId) {
                         $client->send($msg);
-                        echo "Mensaje enviado al receptor {$receptorId} (conexión {$client->resourceId})\n";
+                        echo "Enviado a {$receptorId} (conexión {$client->resourceId}): " . $msg . "\n";
                         $receptorEncontrado = true;
                         break;
                     }
                 }
-        
+
                 if (!$receptorEncontrado) {
-                    echo "Receptor {$receptorId} no encontrado o no conectado\n";
+                    // echo "Receptor {$receptorId} no encontrado o no conectado\n"; // Comentado: Log innecesario
                 }
             }
         } else {
-            echo "Mensaje sin receptor\n";
+            // echo "Mensaje sin receptor\n"; // Comentado: Log innecesario
         }
-        
+
         // Guardar el mensaje en WordPress
-        echo "Intentando guardar mensaje en WordPress...\n";
+        // echo "Intentando guardar mensaje en WordPress...\n"; // Comentado: Log innecesario
 
         // Verificar si hay un token autenticado asociado
         if (isset($this->autenticados[$from->resourceId])) {
-            echo "Token autenticado: " . $this->autenticados[$from->resourceId] . "\n";
+            // echo "Token autenticado: " . $this->autenticados[$from->resourceId] . "\n"; // Comentado: Log innecesario
 
             // Obtener el user_id (emisor) para pasarlo junto con el token
             if (isset($data['emisor'])) {
                 $user_id = $data['emisor'];
                 $conversacion_id = $data['conversacion_id'] ?? null; // Obtener la conversacion_id si está presente
                 $this->guardarMensajeEnWordPress($from, $data, $this->autenticados[$from->resourceId], $user_id, $conversacion_id);
+                // echo "Mensaje guardado en WordPress para el usuario {$user_id}\n"; // Opcional: Puedes descomentar si necesitas este log
             } else {
-                echo "Error: No se proporcionó un emisor en los datos\n";
+                // echo "Error: No se proporcionó un emisor en los datos\n"; // Comentado: Log innecesario
             }
         } else {
-            echo "Error: No se encontró un token autenticado para la conexión {$from->resourceId}\n";
+            // echo "Error: No se encontró un token autenticado para la conexión {$from->resourceId}\n"; // Comentado: Log innecesario
         }
     }
 
     private function verificarToken(ConnectionInterface $conn, $token, $emisor)
     {
         // Log para ver el token y el emisor que se están verificando
-        echo "Iniciando verificación del token para el emisor: {$emisor} en la conexión {$conn->resourceId}\n";
-        echo "Token recibido: {$token}\n";
+        // echo "Iniciando verificación del token para el emisor: {$emisor} en la conexión {$conn->resourceId}\n";
+        // echo "Token recibido: {$token}\n";
 
         // URL del endpoint de verificación de token
         $url = 'https://2upra.com/wp-json/galle/v2/verificartoken';
@@ -222,7 +218,7 @@ class Chat implements MessageComponentInterface
 
             // Enviar respuesta de éxito al cliente
             $conn->send(json_encode(['type' => 'auth', 'status' => 'success']));
-            echo "Autenticación exitosa para el emisor: {$emisor} en la conexión {$conn->resourceId}\n";
+            // echo "Autenticación exitosa para el emisor: {$emisor} en la conexión {$conn->resourceId}\n";
         } else {
             // Si el token es inválido
             echo "Error: Token inválido para el emisor: {$emisor} en la conexión {$conn->resourceId}\n";
@@ -246,9 +242,9 @@ class Chat implements MessageComponentInterface
 
     private function guardarMensajeEnWordPress($from, $data, $token, $user_id, $conversacion_id = null)
     {
-        echo "Datos a enviar a WordPress: " . json_encode($data) . "\n";
-        echo "Token usado para autenticar en WordPress: $token\n";
-        echo "User ID usado para autenticar en WordPress: $user_id\n";
+        // echo "Datos a enviar a WordPress: " . json_encode($data) . "\n";
+        // echo "Token usado para autenticar en WordPress: $token\n";
+        // echo "User ID usado para autenticar en WordPress: $user_id\n";
 
         $url = 'https://2upra.com/wp-json/galle/v2/procesarmensaje';
         $max_intentos = 5; // Número máximo de intentos
